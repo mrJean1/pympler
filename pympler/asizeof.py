@@ -203,7 +203,7 @@ import weakref as Weakref
 __all__ = ['adict', 'asized', 'asizeof', 'asizesof',
            'Asized', 'Asizer',  # classes
            'basicsize', 'flatsize', 'itemsize', 'leng', 'refs']
-__version__ = '18.07.08'
+__version__ = '18.09.24'
 
 # Any classes or types in modules listed in _builtin_modules are
 # considered built-in and ignored by default, as built-in functions
@@ -256,7 +256,7 @@ try:  # sizeof(unicode_char)
     u = unicode('\0')
 except NameError:  # no unicode() in Python 3+
     u = '\0'
-u = u.encode('unicode-internal')  # see .../Lib/test/test_sys.py
+u = u.encode('utf-8')
 _sizeof_Cunicode = len(u)
 del u
 
@@ -295,19 +295,31 @@ _Type_type = type(type)  # == type and new-style class type
 def _items(obj):  # dict only
     '''Return iter-/generator, preferably.
     '''
-    return getattr(obj, 'iteritems', obj.items)()
+    o = getattr(obj, 'iteritems', obj.items)
+    if _callable(o):
+        return o()
+    else:
+        return o or ()
 
 
 def _keys(obj):  # dict only
     '''Return iter-/generator, preferably.
     '''
-    return getattr(obj, 'iterkeys', obj.keys)()
+    o = getattr(obj, 'iterkeys', obj.keys)
+    if _callable(o):
+        return o()
+    else:
+        return o or ()
 
 
 def _values(obj):  # dict only
     '''Return iter-/generator, preferably.
     '''
-    return getattr(obj, 'itervalues', obj.values)()
+    o = getattr(obj, 'itervalues', obj.values)
+    if _callable(o):
+        return o()
+    else:
+        return o or ()
 
 
 try:  # callable() builtin
@@ -1237,13 +1249,14 @@ class _Typedef(object):
                 _typedefs[c] = _Typedef(base=_basicsize(type(t), base=base, heap=heap),
                                         refs=_type_refs,
                                         both=False, kind=k, type=t)
-        elif _isbuiltin2(t) and t not in _typedefs:  # array, range, xrange in Python 2.x
+        elif t not in _typedefs:
+            if not _isbuiltin2(t):  # array, range, xrange in Python 2.x
+                s = ' '.join((self.vari, _moduleof(t), _nameof(t)))
+                s = '%r %s %s' % ((c, k), self.both, s.strip())
+                raise KeyError('asizeof typedef %r bad: %s' % (self, s))
+
             _typedefs[t] = _Typedef(base=_basicsize(t, base=base),
                                     both=False, kind=_kind_ignored, type=t)
-        else:
-            s = ' '.join((self.vari, _moduleof(t), _nameof(t)))
-            s = '%r %s %s' % ((c, k), self.both, s.strip())
-            raise KeyError('asizeof typedef %r bad: %s' % (self, s))
 
     def set(self, safe_len=False, **kwds):
         '''Set one or more attributes.
